@@ -1,0 +1,115 @@
+name: verify-kernel
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'configs/**'
+      - '.github/workflows/verify-kernel.yml'
+
+jobs:
+  tarball:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - line: '7.3'
+            version: '7.3-rc7'
+            hash: 'f789fc0d7b3713b6be23284f2a9c35bf41fb86785b24cfcc506c20d8ff712523'
+            ext: 'tar.gz'
+          - line: '6.18'
+            version: '6.18.55'
+            hash: 'f410638061a165c12f42ab871d2f3fcd525515359b5faeee80969cff84524df9'
+            ext: 'tar.xz'
+    name: kernel ${{ matrix.line }}
+    steps:
+      - name: Download as OpenWrt does
+        run: |
+          if [ "${{ matrix.line }}" = "7.3" ]; then
+            url="https://git.kernel.org/torvalds/t/linux-${{ matrix.version }}.${{ matrix.ext }}"
+          else
+            url="https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-${{ matrix.version }}.${{ matrix.ext }}"
+          fi
+          echo "URL: $url"
+          curl -sSL -D headers.txt -o k.tar --retry 5 --retry-delay 5 \
+            --retry-all-errors --connect-timeout 30 --max-time 2400 "$url"
+          echo "curl_rc=$?"
+          grep -iE '^HTTP/|^content-length|^content-type|^transfer-encoding' headers.txt || true
+
+      - name: Verify
+        run: |
+          set +e
+          ls -l k.tar
+          actual=$(sha256sum k.tar | cut -d' ' -f1)
+          match=no
+          [ "$actual" = "${{ matrix.hash }}" ] && match=yes
+          echo "actual=$actual"
+          echo "expected=${{ matrix.hash }}"
+          echo "match=$match"
+          echo "MATCH=$match" >> "$GITHUB_ENV"
+          echo "---- integrity ----"
+          if [ "${{ matrix.ext }}" = "tar.xz" ]; then
+            xz -t k.tar; echo "xz_rc=$?"
+          else
+            gzip -t k.tar; echo "gzip_rc=$?"
+          fi
+          echo "---- stream size ----"
+          if [ "${{ matrix.ext }}" = "tar.xz" ]; then
+            xz -dc k.tar 2>/dev/null | wc -c
+          else
+            gzip -dc k.tar 2>/dev/null | wc -c
+          fi
+          echo "---- entry count + tail ----"
+          if [ "${{ matrix.ext }}" = "tar.xz" ]; then
+            xz -dc k.tar 2>/dev/null | tar -tf - 2>tar.err | wc -l
+          else
+            gzip -dc k.tar 2>/dev/null | tar -tf - 2>tar.err | wc -l
+          fi
+          echo "tar_rc=$?"; echo "---- tar stderr ----"; cat tar.err
+          echo "---- marker file present? ----"
+          if [ "${{ matrix.ext }}" = "tar.xz" ]; then
+            xz -dc k.tar 2>/dev/null | tar -tf - 2>/dev/null | grep -c 'drivers/net/ethernet/airoha/airoha_eth.c'
+          else
+            gzip -dc k.tar 2>/dev/null | tar -tf - 2>/dev/null | grep -c 'drivers/net/ethernet/airoha/airoha_eth.c'
+          fi
+          echo "---- extracted Makefile version ----"
+          rm -rf x && mkdir x
+          if [ "${{ matrix.ext }}" = "tar.xz" ]; then
+            tar -xJf k.tar -C x 2>/dev/null || true
+          else
+            tar -xzf k.tar -C x 2>/dev/null || true
+          fi
+          find x -maxdepth 2 -name Makefile | head -1 | xargs -r head -5
+          exit 0
+
+      - name: Mirrors
+        run: |
+          set +e
+          echo "7.3-rc7 locations:"
+          for u in \
+            "https://git.kernel.org/torvalds/t/linux-7.3-rc7.tar.gz" \
+            "https://sources.openwrt.org/linux-7.3-rc7.tar.gz" \
+            "https://sources.cdn.openwrt.org/linux-7.3-rc7.tar.gz" \
+            "https://cdn.kernel.org/pub/linux/kernel/v7.x/linux-7.3.tar.xz" \
+            "https://cdn.kernel.org/pub/linux/kernel/v7.x/testing/linux-7.3-rc7.tar.xz" ; do
+            printf '%-72s ' "$u"
+            curl -sIL -o /dev/null -w '%{http_code} %{size_download}\n' --max-time 30 "$u"
+          done
+          echo "newest on cdn.kernel.org v7.x:"
+          curl -s --max-time 60 https://cdn.kernel.org/pub/linux/kernel/v7.x/ \
+            | grep -oE 'linux-7\.[0-9]+\.[0-9]+\.tar\.xz' | sed 's/linux-//;s/\.tar\.xz//' | sort -Vu | tail -6
+
+      - name: Summary
+        run: |
+          {
+            echo "### kernel ${{ matrix.line }} (${{ matrix.version }})"
+            echo ""
+            echo "| item | value |"
+            echo "|---|---|"
+            echo "| expected sha256 | \`${{ matrix.hash }}\` |"
+            echo "| actual sha256 | \`$(sha256sum k.tar | cut -d' ' -f1)\` |"
+            echo "| **hash match** | **${MATCH}** |"
+            echo "| size | $(stat -c%s k.tar) bytes |"
+          } >> "$GITHUB_STEP_SUMMARY"
