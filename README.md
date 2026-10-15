@@ -23,6 +23,10 @@ Output: `bin/targets/airoha/an7581/`.
 
 ## Flashing
 
-`xr1710g-ubi-initramfs-recovery.itb` goes to the U-Boot recovery console.
+`xr1710g-ubi-initramfs-recovery.itb` goes to the U-Boot recovery console
+(requires the third-party U-Boot; stock AXON 1.6 cannot load it).
 `xr1710g-ubi-sysupgrade.itb` is for `sysupgrade` from a running system.
-See the source repo's [`docs/flashing.md`](https://github.com/genshanxinli/xr1710g-openwrt/blob/xr1710g/docs/flashing.md).
+
+Do not cross-flash W1700K images: the hardware differs (RTL8261BE vs RTL8261N
+10G PHY, MT7530-driven 1G LEDs) and the device stops working. See the source
+repo's [README](https://github.com/genshanxinli/xr1710g-openwrt/blob/xr1710g/README.md).
