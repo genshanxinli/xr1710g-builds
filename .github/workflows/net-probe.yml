@@ -1,0 +1,28 @@
+name: net-probe
+on:
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Probe
+        env:
+          SUB_URL: ${{ secrets.SUB_URL }}
+        run: |
+          echo "runner ip:"; curl -s --max-time 10 https://ipinfo.io/json | head -6
+          probe () {
+            local label="$1"; local url="$2"; local out="/tmp/o_$label.txt"
+            local code time
+            code=$(curl -s -o "$out" -w '%{http_code}' --max-time 30 -A "clash-verge/v2.3.2" "$url" 2>/dev/null); local rc=$?
+            time=$(curl -s -o /dev/null -w '%{time_total}' --max-time 30 -A "clash-verge/v2.3.2" "$url" 2>/dev/null)
+            echo "RESULT|$label|http=$code|curl_rc=$rc|t=${time}s|size=$(stat -c%s "$out" 2>/dev/null || echo 0)|first=$(head -c 70 "$out" 2>/dev/null | tr '\n' ' ')"
+          }
+          [ -z "$SUB_URL" ] && echo "NO SUB_URL SECRET" || echo "SUB_URL len=${#SUB_URL} host=$(echo "$SUB_URL" | sed -E 's#^(https?://[^/]+).*#\1#')"
+          node -e 'const u=process.env.SUB_URL; console.log("node says url ok:", !!new URL(u)); fetch(u,{headers:{"User-Agent":"clash-verge/v2.3.2"},signal:AbortSignal.timeout(120000)}).then(r=>console.log("NODE|fetch|status="+r.status)).catch(e=>console.log("NODE|fetch|err="+e.message+"|cause="+(e.cause&&(e.cause.code||e.cause.message))))'
+          probe "direct" "$SUB_URL"
+          probe "corssh" "https://proxy.cors.sh/$SUB_URL"
+          probe "allorigins" "https://api.allorigins.win/raw?url=$SUB_URL"
+          probe "codetabs" "https://api.codetabs.com/v1/proxy?quest=$SUB_URL"
+          probe "adblock" "https://gcore.jsdelivr.net/gh/217heidai/adblockfilters@main/rules/adblockmihomolite.yaml"
+          [ -n "$GIST_TOKEN" ] && echo "GIST_TOKEN present"
