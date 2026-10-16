@@ -7,22 +7,28 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Probe
-        env:
-          SUB_URL: ${{ secrets.SUB_URL }}
         run: |
+          TARGET="https://raw.githubusercontent.com/217heidai/adblockfilters/main/rules/adblockmihomolite.yaml"
           echo "runner ip:"; curl -s --max-time 10 https://ipinfo.io/json | head -6
           probe () {
             local label="$1"; local url="$2"; local out="/tmp/o_$label.txt"
-            local code time
-            code=$(curl -s -o "$out" -w '%{http_code}' --max-time 30 -A "clash-verge/v2.3.2" "$url" 2>/dev/null); local rc=$?
-            time=$(curl -s -o /dev/null -w '%{time_total}' --max-time 30 -A "clash-verge/v2.3.2" "$url" 2>/dev/null)
-            echo "RESULT|$label|http=$code|curl_rc=$rc|t=${time}s|size=$(stat -c%s "$out" 2>/dev/null || echo 0)|first=$(head -c 70 "$out" 2>/dev/null | tr '\n' ' ')"
+            local res; res=$(curl -s -o "$out" -w '%{http_code}' --max-time 30 -A "clash-verge/v2.3.2" "$url" 2>/dev/null); local rc=$?
+            echo "RESULT|$label|http=$res|curl_rc=$rc|size=$(stat -c%s "$out" 2>/dev/null || echo 0)|first=$(head -c 60 "$out" 2>/dev/null | tr '\n' ' ')"
           }
-          [ -z "$SUB_URL" ] && echo "NO SUB_URL SECRET" || echo "SUB_URL len=${#SUB_URL} host=$(echo "$SUB_URL" | sed -E 's#^(https?://[^/]+).*#\1#')"
-          node -e 'const u=process.env.SUB_URL; console.log("node says url ok:", !!new URL(u)); fetch(u,{headers:{"User-Agent":"clash-verge/v2.3.2"},signal:AbortSignal.timeout(120000)}).then(r=>console.log("NODE|fetch|status="+r.status)).catch(e=>console.log("NODE|fetch|err="+e.message+"|cause="+(e.cause&&(e.cause.code||e.cause.message))))'
-          probe "direct" "$SUB_URL"
-          probe "corssh" "https://proxy.cors.sh/$SUB_URL"
-          probe "allorigins" "https://api.allorigins.win/raw?url=$SUB_URL"
-          probe "codetabs" "https://api.codetabs.com/v1/proxy?quest=$SUB_URL"
-          probe "adblock" "https://gcore.jsdelivr.net/gh/217heidai/adblockfilters@main/rules/adblockmihomolite.yaml"
-          [ -n "$GIST_TOKEN" ] && echo "GIST_TOKEN present"
+          probe "direct-target" "$TARGET"
+          probe "corssh" "https://proxy.cors.sh/$TARGET"
+          probe "allorigins" "https://api.allorigins.win/raw?url=$TARGET"
+          probe "codetabs" "https://api.codetabs.com/v1/proxy?quest=$TARGET"
+          probe "corsproxyio" "https://corsproxy.io/?$TARGET"
+          probe "whateverorigin" "http://www.whateverorigin.org/get?url=$TARGET"
+          probe "thingproxy" "https://thingproxy.freeboard.io/fetch/$TARGET"
+          probe "cors-anywhere" "https://cors-anywhere.herokuapp.com/$TARGET"
+          probe "textance" "https://api.cors.lol/?url=$TARGET"
+          probe "isomorphic" "https://cors.isomorphic-git.org/$TARGET"
+          echo "--- DNS resolution ---"
+          for h in proxy.cors.sh api.allorigins.win api.codetabs.com corsproxy.io; do
+            echo -n "$h -> "; getent hosts "$h" | head -1 || echo "NXDOMAIN/FAIL"
+          done
+          echo "--- HEAD via proxy.cors.sh verbose ---"
+          curl -sSI --max-time 20 "https://proxy.cors.sh/$TARGET" 2>&1 | head -5
+          curl -sS --max-time 20 -o /dev/null "https://proxy.cors.sh/$TARGET" 2>&1 | head -5
