@@ -8,6 +8,7 @@ jobs:
     steps:
       - name: Probe
         run: |
+          set +e
           TARGET="https://raw.githubusercontent.com/217heidai/adblockfilters/main/rules/adblockmihomolite.yaml"
           echo "runner ip:"; curl -s --max-time 10 https://ipinfo.io/json | head -6
           probe () {
