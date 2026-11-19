@@ -2,6 +2,11 @@ name: build
 
 on:
   workflow_dispatch:
+    inputs:
+      source_branch:
+        description: 'Source branch in xr1710g-openwrt (default: the env value)'
+        required: false
+        type: string
   push:
     paths:
       - 'configs/**'
@@ -38,7 +43,9 @@ jobs:
 
       - name: Clone firmware source
         run: |
-          git clone --branch "$REPO_BRANCH" --depth 1 "$REPO_URL" openwrt
+          BRANCH="${{ inputs.source_branch || env.REPO_BRANCH }}"
+          echo "building $REPO_URL@$BRANCH"
+          git clone --branch "$BRANCH" --depth 1 "$REPO_URL" openwrt
           cd openwrt
           echo "source=$(git rev-parse --short HEAD)" >> "$GITHUB_ENV"
 
