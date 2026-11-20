@@ -63,6 +63,14 @@ jobs:
       - name: Compile
         run: cd openwrt && make -j"$(nproc)" || make -j1 V=s
 
+      - name: Check release image features
+        run: |
+          cd openwrt
+          python3 scripts/check-release-image-features.py \
+            --repo . \
+            --build-dir build_dir \
+            --image-dir bin/targets/airoha/an7581
+
       - name: Collect images
         run: |
           cd openwrt
