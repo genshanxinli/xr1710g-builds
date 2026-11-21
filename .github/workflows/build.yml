@@ -110,6 +110,20 @@ jobs:
           path: out/
           if-no-files-found: error
 
+      # The feed tree itself, under a name that does not change between runs,
+      # so the published feeds can be inspected without a release existing.
+      # Retention is pinned shorter than the 90-day default: a feed tree is only
+      # meaningful next to the image of the same commit, and the tarball in
+      # `out/` above is the durable copy (it becomes a release asset).
+      # The image is not uploaded twice -- `Upload artifacts` already ships it.
+      - name: Upload distfeeds tree
+        uses: actions/upload-artifact@v4
+        with:
+          name: distfeeds-an7581
+          path: distfeeds/
+          retention-days: 7
+          if-no-files-found: error
+
       - name: Release
         if: github.event_name == 'workflow_dispatch'
         run: |
