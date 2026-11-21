@@ -58,7 +58,7 @@ jobs:
           make defconfig
 
       - name: Download sources
-        run: cd openwrt && make download -j8
+        run: cd openwrt && make download -j8 || make download -j1 V=s
 
       - name: Compile
         run: cd openwrt && make -j"$(nproc)" || make -j1 V=s
@@ -102,6 +102,13 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
           exit "$rc"
+
+      - name: Record the distfeeds checksum
+        run: |
+          cd out
+          test -f distfeeds-*.tar.gz
+          sha256sum distfeeds-*.tar.gz >> sha256sums
+          grep distfeeds sha256sums
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
