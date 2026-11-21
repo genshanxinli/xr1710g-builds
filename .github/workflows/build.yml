@@ -58,7 +58,7 @@ jobs:
           make defconfig
 
       - name: Download sources
-        run: cd openwrt && make download -j8
+        run: cd openwrt && make download -j8 || make download -j1 V=s
 
       - name: Compile
         run: cd openwrt && make -j"$(nproc)" || make -j1 V=s
