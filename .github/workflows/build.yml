@@ -80,6 +80,29 @@ jobs:
           tar -czf ../out/distfeeds-${{ env.source }}.tar.gz -C .. distfeeds
           ls -la ../out
 
+      - name: Check release image features
+        run: |
+          cd openwrt
+          LOG="$RUNNER_TEMP/image-feature-gate.log"
+          set +e
+          python3 scripts/check-release-image-features.py \
+            --repo . \
+            --build-dir build_dir \
+            --image-dir bin/targets/airoha/an7581 >"$LOG" 2>&1
+          rc=$?
+          set -e
+          cat "$LOG"
+          {
+            echo '### release image feature gate (974 BQL / 968 napi_complete_done)'
+            echo
+            echo "exit code: $rc"
+            echo
+            echo '```'
+            cat "$LOG"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "$rc"
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
